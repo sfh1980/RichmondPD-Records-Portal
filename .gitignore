@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+
+.DS_Store
+Thumbs.db
+
+appsettings.Development.json
+*.user
+*.suo
+cursor_*.md

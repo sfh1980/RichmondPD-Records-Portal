@@ -1,0 +1,398 @@
+# ============================================================
+# CURSOR RULES — RichmondPD Records Portal
+# ============================================================
+# Project:  RichmondPD Records Portal
+# Stack:    ASP.NET Core 8 Web API + Vanilla HTML/CSS/JS SPA
+# Pattern:  REST API + SPA (controllers access EF Core directly)
+# Domain:   Law Enforcement Records Management (demo/portfolio)
+# Level:    Intermediate — enforce standards, explain reasoning
+# ============================================================
+# DOMAIN CONTEXT
+# ============================================================
+#
+# This is an interview demo project — a police incident records
+# management system showcasing C#/.NET, SQL Server, JWT auth,
+# stored procedures, triggers, XML export, Python ETL, and IIS.
+#
+# The code is intentionally kept simple (no service/repository
+# layers) to be explainable in an interview. Security shortcuts
+# (hardcoded credentials, AllowAnyOrigin) are documented as
+# technical debt with notes on what production would require.
+# ============================================================
+
+
+# ------------------------------------------------------------
+# ARCHITECTURE
+# ------------------------------------------------------------
+
+This is an ASP.NET Core 8 Web API with a decoupled vanilla JS
+frontend (index.html). Controllers access AppDbContext directly.
+
+  Controllers (API layer)
+    - Receive HTTP requests
+    - Validate auth via [Authorize] attribute
+    - Query or mutate data through AppDbContext
+    - Map domain models to DTOs for responses
+    - Return ActionResult with correct HTTP status codes
+
+  AppDbContext (EF Core)
+    - Single DbContext: AppDbContext in namespace PolicePortal.Data
+    - Registered as Scoped in Program.cs
+    - Injected into controllers via constructor
+    - Entity configuration via OnModelCreating (fluent API)
+    - Seed data for lookup tables (IncidentStatus, IncidentType)
+    - Auto-migrates on startup via db.Database.Migrate()
+
+  Frontend (static SPA)
+    - Single index.html file with embedded CSS and JS
+    - Communicates with the API via fetch() + JWT Bearer header
+    - No build step, no framework — vanilla HTML/CSS/JS
+
+  Seeder (Python)
+    - seed.py generates fake data via the API using Faker + requests
+    - Also generates a bulk SQL INSERT file (ETL demo)
+
+  Database Scripts
+    - stored_procedures.sql: trigger, 3 reporting stored procs, indexes
+    - Run manually in SSMS after EF migrations create the schema
+
+There is no Service layer, no Repository layer, and no middleware
+pipeline beyond the defaults. This is by design for a demo project.
+
+
+# ------------------------------------------------------------
+# FILE STRUCTURE
+# ------------------------------------------------------------
+
+All source files live at the project root (flat structure):
+
+  Program.cs                 → App startup, DI, middleware pipeline
+  Models.cs                  → All domain models in one file
+  AppDbContext.cs             → EF Core DbContext + seed data
+  Dtos.cs                    → All request/response DTOs in one file
+  AuthController.cs          → JWT login endpoint
+  IncidentsController.cs     → Incident CRUD, dashboard stats, XML export
+  OfficersController.cs      → Officer CRUD with soft delete
+  LocationsController.cs     → Location CRUD
+  ReportsController.cs       → Stored procedure reporting endpoints
+  appsettings.json           → Connection string, JWT config
+  PolicePortal.csproj        → Project file targeting net8.0
+  stored_procedures.sql      → SQL trigger, stored procs, indexes
+  index.html                 → Full frontend SPA
+  seed.py                    → Python data seeder
+  README.md                  → Project overview and interview talking points
+
+When adding new functionality, add to existing files unless the
+file would exceed ~300 lines, then discuss splitting.
+
+
+# ------------------------------------------------------------
+# NAMING CONVENTIONS
+# ------------------------------------------------------------
+
+Classes and files:
+  - Controllers:       {Entity}sController          → IncidentsController.cs
+  - Domain models:     {Entity}                     → Incident, Officer, Location
+  - Lookup models:     {Entity}{Qualifier}           → IncidentStatus, IncidentType
+  - Response DTOs:     {Entity}Dto                  → IncidentDto, OfficerDto
+  - Create DTOs:       Create{Entity}Request        → CreateIncidentRequest
+  - Update DTOs:       Update{Entity}Request        → UpdateIncidentRequest
+  - SP result DTOs:    {Purpose}Result              → MonthlySummaryResult
+  - DbContext:         AppDbContext
+
+Methods:
+  - Async controller methods do not use Async suffix (ASP.NET convention)
+  - Private helpers use descriptive names: GenerateCaseNumber, MapToDto
+
+General:
+  - PascalCase for classes, methods, properties, and constants
+  - camelCase for local variables and method parameters
+  - No abbreviations unless standard (Id, Dto, Db acceptable)
+  - Law enforcement domain vocabulary preferred:
+      Use:   Incident, Officer, Location, Precinct, CaseNumber, BadgeNumber
+      Avoid: User, Order, Product
+
+
+# ------------------------------------------------------------
+# DEPENDENCY INJECTION
+# ------------------------------------------------------------
+
+All DI registration lives inline in Program.cs:
+  - AppDbContext via AddDbContext<AppDbContext> (Scoped)
+  - JWT Bearer authentication via AddAuthentication + AddJwtBearer
+  - Swagger via AddSwaggerGen with Bearer security definition
+  - CORS via AddCors
+  - Controllers via AddControllers
+
+Controllers receive AppDbContext through constructor injection.
+AuthController receives IConfiguration for JWT settings.
+
+This is a small demo — no need for extension methods or grouped
+registration. If the project grows past 5-6 services, refactor
+DI into extension methods.
+
+
+# ------------------------------------------------------------
+# ASYNC / AWAIT
+# ------------------------------------------------------------
+
+All controller actions that touch the database are async.
+
+Rules:
+  - Always use async/await — never .Result or .Wait()
+  - Never use async void
+  - EF Core calls use async variants: ToListAsync, CountAsync,
+    FirstOrDefaultAsync, FindAsync, SaveChangesAsync
+
+
+# ------------------------------------------------------------
+# DTOS
+# ------------------------------------------------------------
+
+Never expose domain models directly in GET responses — use DTOs.
+POST/PUT endpoints for Officers and Locations currently accept the
+domain model directly; this is acceptable for a demo but noted as
+technical debt.
+
+DTO conventions:
+  - Use C# records for all DTOs (immutable by default)
+  - Response DTOs flatten navigation properties into display strings
+    (e.g., OfficerName instead of nested Officer object)
+  - Never include sensitive fields in responses (passwords, tokens)
+
+Mapping:
+  - Manual mapping via static MapToDto helper methods or inline
+    .Select() projections in controller actions
+  - No AutoMapper or Mapster — manual mapping is appropriate for
+    this project size and keeps dependencies minimal
+
+
+# ------------------------------------------------------------
+# ERROR HANDLING
+# ------------------------------------------------------------
+
+Uses default ASP.NET Core error handling. No custom exception
+classes or global exception middleware.
+
+HTTP status codes used consistently:
+  - 200 OK             → Successful GET or PUT returning data
+  - 201 Created        → Successful POST (via CreatedAtAction)
+  - 204 No Content     → Successful PUT/DELETE with no response body
+  - 400 Bad Request    → Model binding failure (automatic)
+  - 401 Unauthorized   → Missing or invalid JWT token
+  - 404 Not Found      → Resource does not exist
+
+Controllers return NotFound() for missing resources and let
+ASP.NET Core handle model binding errors automatically.
+
+Production upgrade: add global exception middleware returning
+ProblemDetails (RFC 7807) and custom exception types.
+
+
+# ------------------------------------------------------------
+# ENTITY FRAMEWORK CORE
+# ------------------------------------------------------------
+
+Queries:
+  - Use explicit .Include() for eager loading related entities
+  - Use .Select() projections for list endpoints to shape responses
+  - Avoid queries inside loops (N+1 problem)
+  - Raw SQL via Database.SqlQueryRaw<T> for stored procedure calls
+    in ReportsController only
+
+Schema:
+  - Entity configuration in AppDbContext.OnModelCreating (fluent API)
+  - Unique indexes on CaseNumber and BadgeNumber
+  - All FK relationships use DeleteBehavior.Restrict (no cascade)
+  - Lookup tables (IncidentStatus, IncidentType) seeded via HasData
+  - Migrations auto-applied on startup via db.Database.Migrate()
+
+DbContext:
+  - Named AppDbContext, namespace PolicePortal.Data
+  - Injected directly into controllers (no repository abstraction)
+  - DbSets: Incidents, Officers, Locations, IncidentStatuses, IncidentTypes
+
+
+# ------------------------------------------------------------
+# REST API CONVENTIONS
+# ------------------------------------------------------------
+
+Route design:
+  - Plural nouns: /api/incidents, /api/officers, /api/locations
+  - No API versioning (demo project — single version)
+  - Special endpoints as sub-routes: /api/incidents/dashboard,
+    /api/incidents/export/xml, /api/reports/open-by-precinct
+
+HTTP verbs:
+  - GET    → Read (list, single, dashboard stats, XML export, reports)
+  - POST   → Create a new resource
+  - PUT    → Replace an entire resource
+  - DELETE → Remove (hard delete on Incidents/Locations, soft on Officers)
+
+Response conventions:
+  - Collection endpoints return JSON arrays with X-Total-Count header
+  - Pagination via page and pageSize query parameters (default 25)
+  - Filtering via query parameters (statusId, typeId, precinct, activeOnly)
+  - camelCase JSON property names (ASP.NET Core default)
+  - ISO 8601 timestamps
+
+Production upgrade: wrap collections in a paginated envelope with
+totalCount, pageNumber, totalPages, hasNextPage, hasPreviousPage.
+
+
+# ------------------------------------------------------------
+# SECURITY
+# ------------------------------------------------------------
+
+Authentication:
+  - JWT Bearer tokens validated on every request (issuer, audience,
+    lifetime, signing key)
+  - Login endpoint: POST /api/auth/login (AllowAnonymous is implicit —
+    AuthController has no [Authorize] at the class level)
+  - Demo credentials: admin / Password123! (hardcoded in AuthController)
+  - Token lifetime: 60 minutes (configurable via Jwt:ExpiryMinutes)
+  - Token claims: Name, Role ("Officer"), Jti
+
+Authorization:
+  - [Authorize] applied at the class level on all controllers
+    except AuthController
+  - Single role: Officer (no role hierarchy or policies)
+
+CORS:
+  - AllowAnyOrigin + AllowAnyHeader + AllowAnyMethod (dev convenience)
+
+Known demo shortcuts (interview talking points for "what would you
+do differently in production?"):
+  - Hash passwords with BCrypt, store users in a database table
+  - Add refresh token rotation with server-side storage
+  - Replace AllowAnyOrigin with explicit origin whitelist
+  - Move JWT key to environment variables or Azure Key Vault
+  - Add role-based policies (Officer, Supervisor, Admin)
+  - Enforce HTTPS
+  - Add rate limiting on auth endpoints
+
+
+# ------------------------------------------------------------
+# AUDIT AND DATA INTEGRITY
+# ------------------------------------------------------------
+
+Current implementation:
+  - DB trigger (trg_Incidents_UpdatedAt) auto-sets UpdatedAt on
+    Incidents table after any UPDATE — this is the only audit mechanism
+  - Officers use soft delete (IsActive = false)
+  - Incidents and Locations use hard delete (DbSet.Remove)
+
+Production upgrade: add a BaseEntity with CreatedAt/ModifiedAt/IsDeleted
+fields, override SaveChangesAsync to populate them automatically,
+and add an AuditLog table capturing all mutations.
+
+
+# ------------------------------------------------------------
+# STORED PROCEDURES
+# ------------------------------------------------------------
+
+Three reporting stored procedures exist in stored_procedures.sql
+and are called from ReportsController via Database.SqlQueryRaw<T>:
+
+  sp_GetOpenIncidentsByPrecinct  → open incidents with officer/location
+  sp_MonthlyIncidentSummary      → incident counts by type/status for a month
+  sp_OfficerWorkload             → incident counts per officer
+
+These demonstrate "when to use stored procedures" for the interview:
+pre-compiled, DBA-tunable, complex reporting logic outside app code.
+
+Result DTOs in Dtos.cs must match the column names and types returned
+by each stored procedure exactly (SqlQueryRaw maps by column name).
+
+
+# ------------------------------------------------------------
+# XML EXPORT
+# ------------------------------------------------------------
+
+GET /api/incidents/export/xml returns incident data as well-formed
+XML using System.Xml.Linq (XDocument, XElement, XAttribute).
+
+Filterable by statusId query parameter. Returns Content-Type
+application/xml. Frontend downloads via Blob + anchor click.
+
+
+# ------------------------------------------------------------
+# PYTHON SEEDER
+# ------------------------------------------------------------
+
+seed.py generates fake data using Faker and posts to the API.
+
+Flow:
+  1. Generate seed_locations.sql (bulk INSERT — ETL demo)
+  2. Pause for user to run SQL in SSMS
+  3. Authenticate via /api/auth/login to get JWT
+  4. POST 30 locations to /api/locations
+  5. POST 15 officers to /api/officers
+  6. POST 100 incidents to /api/incidents
+
+Uses fixed seeds (Faker.seed(42), random.seed(42)) for
+reproducible output.
+
+Also includes etl_seed_locations_sql() which generates a raw SQL
+INSERT file — demonstrates ETL concepts for the interview.
+
+
+# ------------------------------------------------------------
+# FRONTEND
+# ------------------------------------------------------------
+
+index.html is a single-file SPA with embedded CSS and JS.
+
+Features:
+  - Login screen with JWT auth (stores token in localStorage)
+  - Dashboard with 4 stat cards (open, investigating, closed, total)
+  - Incident table with status/type filter dropdowns and pagination
+  - XML export download button
+  - Auto-login if token exists in localStorage
+
+Styling: dark police-themed UI with monospace fonts, scanline
+overlay, cyan accent color, stat cards with color-coded borders.
+
+API base URL hardcoded to http://localhost:5000/api. Update this
+constant when deploying to IIS or a different host.
+
+
+# ------------------------------------------------------------
+# DOCUMENTATION
+# ------------------------------------------------------------
+
+TECHNICAL_SPEC.md in .cursor/ is the single source of truth for
+project documentation. Update it when:
+  - A new entity is added or modified
+  - A new endpoint is added
+  - A config key is added
+  - A feature is completed (update Progress Tracker)
+  - A shortcut is taken (add to Technical Debt)
+
+README.md at the project root is the public-facing overview with
+setup instructions and interview talking points.
+
+
+# ------------------------------------------------------------
+# TOKEN EFFICIENCY — CURSOR BEHAVIOR
+# ------------------------------------------------------------
+
+When generating code:
+  - Generate only what was explicitly requested
+  - Do not regenerate unchanged files or methods
+  - Reference existing patterns rather than re-explaining them
+  - When updating a method, show only the changed method
+  - Do not add comments that restate what the code obviously does
+
+
+# ------------------------------------------------------------
+# EXPLANATION BEHAVIOR
+# ------------------------------------------------------------
+
+After generating non-trivial code:
+  - Name the pattern or principle being applied
+  - Explain WHY, not just what
+  - Define ASP.NET Core or domain terms an intermediate developer
+    may not know, using the actual code as the example
+  - Keep explanations to 1-2 sentences per construct
+  - Never re-explain something covered earlier — reference it

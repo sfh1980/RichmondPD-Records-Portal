@@ -22,15 +22,11 @@ public class IncidentsController : ControllerBase
         [FromQuery] int?    statusId   = null,
         [FromQuery] int?    typeId     = null,
         [FromQuery] string? precinct   = null,
+        [FromQuery] bool    includeArchived = false,
         [FromQuery] int     page       = 1,
         [FromQuery] int     pageSize   = 25)
     {
-        var query = _db.Incidents
-            .Include(i => i.IncidentType)
-            .Include(i => i.IncidentStatus)
-            .Include(i => i.Location)
-            .Include(i => i.Officer)
-            .AsQueryable();
+        var query = IncidentQuery(includeArchived);
 
         if (statusId.HasValue)  query = query.Where(i => i.IncidentStatusId == statusId);
         if (typeId.HasValue)    query = query.Where(i => i.IncidentTypeId == typeId);
@@ -52,13 +48,9 @@ public class IncidentsController : ControllerBase
 
     // ── GET /api/incidents/{id} ────────────────────────────────────────────────
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<IncidentDto>> GetById(int id)
+    public async Task<ActionResult<IncidentDto>> GetById(int id, [FromQuery] bool includeArchived = false)
     {
-        var incident = await _db.Incidents
-            .Include(i => i.IncidentType)
-            .Include(i => i.IncidentStatus)
-            .Include(i => i.Location)
-            .Include(i => i.Officer)
+        var incident = await IncidentQuery(includeArchived)
             .FirstOrDefaultAsync(i => i.Id == id);
 
         return incident is null ? NotFound() : Ok(MapToDto(incident));
@@ -71,20 +63,19 @@ public class IncidentsController : ControllerBase
         var caseNumber = await GenerateCaseNumber();
         var incident = new Incident
         {
-            CaseNumber      = caseNumber,
-            Description     = req.Description,
-            OccurredAt      = req.OccurredAt,
-            IncidentTypeId  = req.IncidentTypeId,
+            CaseNumber       = caseNumber,
+            Description      = req.Description.Trim(),
+            OccurredAt       = req.OccurredAt,
+            IncidentTypeId   = req.IncidentTypeId,
             IncidentStatusId = req.IncidentStatusId,
-            LocationId      = req.LocationId,
-            OfficerId       = req.OfficerId
+            LocationId       = req.LocationId,
+            OfficerId        = req.OfficerId
         };
 
         _db.Incidents.Add(incident);
         await _db.SaveChangesAsync();
 
-        // Re-load with nav properties for response
-        return await GetById(incident.Id);
+        return CreatedAtAction(nameof(GetById), new { id = incident.Id }, await LoadIncidentDto(incident.Id, includeArchived: true));
     }
 
     // ── PUT /api/incidents/{id} ────────────────────────────────────────────────
@@ -92,9 +83,9 @@ public class IncidentsController : ControllerBase
     public async Task<ActionResult<IncidentDto>> Update(int id, [FromBody] UpdateIncidentRequest req)
     {
         var incident = await _db.Incidents.FindAsync(id);
-        if (incident is null) return NotFound();
+        if (incident is null || incident.IsDeleted) return NotFound();
 
-        incident.Description      = req.Description;
+        incident.Description      = req.Description.Trim();
         incident.OccurredAt       = req.OccurredAt;
         incident.IncidentTypeId   = req.IncidentTypeId;
         incident.IncidentStatusId = req.IncidentStatusId;
@@ -103,7 +94,7 @@ public class IncidentsController : ControllerBase
         // UpdatedAt is handled by the DB trigger (see SQL script)
 
         await _db.SaveChangesAsync();
-        return await GetById(id);
+        return Ok(await LoadIncidentDto(id, includeArchived: true));
     }
 
     // ── DELETE /api/incidents/{id} ─────────────────────────────────────────────
@@ -113,21 +104,34 @@ public class IncidentsController : ControllerBase
         var incident = await _db.Incidents.FindAsync(id);
         if (incident is null) return NotFound();
 
-        _db.Incidents.Remove(incident);
+        if (incident.IsDeleted)
+            return NoContent();
+
+        incident.IsDeleted = true;
+        incident.DeletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    // ── POST /api/incidents/{id}/restore ───────────────────────────────────────
+    [HttpPost("{id:int}/restore")]
+    public async Task<ActionResult<IncidentDto>> Restore(int id)
+    {
+        var incident = await _db.Incidents.FindAsync(id);
+        if (incident is null) return NotFound();
+
+        incident.IsDeleted = false;
+        incident.DeletedAt = null;
+
+        await _db.SaveChangesAsync();
+        return Ok(await LoadIncidentDto(id, includeArchived: true));
     }
 
     // ── GET /api/incidents/export/xml ──────────────────────────────────────────
     [HttpGet("export/xml")]
     public async Task<IActionResult> ExportXml([FromQuery] int? statusId = null)
     {
-        var query = _db.Incidents
-            .Include(i => i.IncidentType)
-            .Include(i => i.IncidentStatus)
-            .Include(i => i.Location)
-            .Include(i => i.Officer)
-            .AsQueryable();
+        var query = IncidentQuery();
 
         if (statusId.HasValue)
             query = query.Where(i => i.IncidentStatusId == statusId);
@@ -173,17 +177,18 @@ public class IncidentsController : ControllerBase
     {
         var now = DateTime.UtcNow;
         var startOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var incidents = _db.Incidents.Where(i => !i.IsDeleted);
 
         var stats = new DashboardStats(
-            TotalIncidents:      await _db.Incidents.CountAsync(),
-            OpenIncidents:       await _db.Incidents.CountAsync(i => i.IncidentStatus.Name == "Open"),
-            ClosedThisMonth:     await _db.Incidents.CountAsync(i => i.IncidentStatus.Name == "Closed" && i.UpdatedAt >= startOfMonth),
-            UnderInvestigation:  await _db.Incidents.CountAsync(i => i.IncidentStatus.Name == "Under Investigation"),
-            ByType: await _db.Incidents
+            TotalIncidents:      await incidents.CountAsync(),
+            OpenIncidents:       await incidents.CountAsync(i => i.IncidentStatus.Name == "Open"),
+            ClosedThisMonth:     await incidents.CountAsync(i => i.IncidentStatus.Name == "Closed" && i.UpdatedAt >= startOfMonth),
+            UnderInvestigation:  await incidents.CountAsync(i => i.IncidentStatus.Name == "Under Investigation"),
+            ByType: await incidents
                 .GroupBy(i => i.IncidentType.Name)
                 .Select(g => new IncidentsByType(g.Key, g.Count()))
                 .ToListAsync(),
-            ByStatus: await _db.Incidents
+            ByStatus: await incidents
                 .GroupBy(i => new { i.IncidentStatus.Name, i.IncidentStatus.ColorHex })
                 .Select(g => new IncidentsByStatus(g.Key.Name, g.Key.ColorHex, g.Count()))
                 .ToListAsync()
@@ -200,6 +205,26 @@ public class IncidentsController : ControllerBase
         return $"RVA-{year}-{count:D5}";
     }
 
+    private IQueryable<Incident> IncidentQuery(bool includeArchived = false)
+    {
+        var query = _db.Incidents
+            .Include(i => i.IncidentType)
+            .Include(i => i.IncidentStatus)
+            .Include(i => i.Location)
+            .Include(i => i.Officer)
+            .AsQueryable();
+
+        return includeArchived ? query : query.Where(i => !i.IsDeleted);
+    }
+
+    private async Task<IncidentDto> LoadIncidentDto(int id, bool includeArchived = false)
+    {
+        var incident = await IncidentQuery(includeArchived)
+            .FirstAsync(i => i.Id == id);
+
+        return MapToDto(incident);
+    }
+
     private static IncidentDto MapToDto(Incident i) => new(
         i.Id,
         i.CaseNumber,
@@ -207,12 +232,18 @@ public class IncidentsController : ControllerBase
         i.ReportedAt,
         i.OccurredAt,
         i.UpdatedAt,
+        i.IncidentTypeId,
+        i.IncidentStatusId,
+        i.LocationId,
+        i.OfficerId,
         i.IncidentType.Name,
         i.IncidentStatus.Name,
         i.IncidentStatus.ColorHex,
         $"{i.Officer.FirstName} {i.Officer.LastName}",
         i.Officer.BadgeNumber,
         $"{i.Location.Street}, {i.Location.City}, {i.Location.State} {i.Location.ZipCode}",
-        i.Location.Precinct
+        i.Location.Precinct,
+        i.IsDeleted,
+        i.DeletedAt
     );
 }

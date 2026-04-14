@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PolicePortal.Data;
 using PolicePortal.DTOs;
-using PolicePortal.Models;
 
 namespace PolicePortal.Controllers;
 
@@ -18,15 +17,13 @@ public class OfficersController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<OfficerDto>>> GetAll([FromQuery] bool? activeOnly = null)
     {
-        var query = _db.Officers.Include(o => o.Incidents).AsQueryable();
+        var query = _db.Officers.AsQueryable();
         if (activeOnly.HasValue)
             query = query.Where(o => o.IsActive == activeOnly.Value);
 
         var officers = await query
             .OrderBy(o => o.LastName)
-            .Select(o => new OfficerDto(
-                o.Id, o.BadgeNumber, o.FirstName, o.LastName,
-                o.Rank, o.Precinct, o.IsActive, o.Incidents.Count))
+            .Select(MapToDto())
             .ToListAsync();
 
         return Ok(officers);
@@ -35,34 +32,47 @@ public class OfficersController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<OfficerDto>> GetById(int id)
     {
-        var o = await _db.Officers.Include(x => x.Incidents).FirstOrDefaultAsync(x => x.Id == id);
-        if (o is null) return NotFound();
-        return Ok(new OfficerDto(o.Id, o.BadgeNumber, o.FirstName, o.LastName,
-            o.Rank, o.Precinct, o.IsActive, o.Incidents.Count));
+        var officer = await _db.Officers
+            .Where(o => o.Id == id)
+            .Select(MapToDto())
+            .FirstOrDefaultAsync();
+
+        return officer is null ? NotFound() : Ok(officer);
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] Officer officer)
+    public async Task<ActionResult<OfficerDto>> Create([FromBody] CreateOfficerRequest request)
     {
+        var officer = new PolicePortal.Models.Officer
+        {
+            BadgeNumber = request.BadgeNumber.Trim(),
+            FirstName = request.FirstName.Trim(),
+            LastName = request.LastName.Trim(),
+            Rank = request.Rank.Trim(),
+            Precinct = request.Precinct.Trim(),
+            IsActive = request.IsActive
+        };
+
         _db.Officers.Add(officer);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = officer.Id }, officer);
+        return CreatedAtAction(nameof(GetById), new { id = officer.Id }, await LoadOfficerDto(officer.Id));
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] Officer updated)
+    public async Task<ActionResult<OfficerDto>> Update(int id, [FromBody] UpdateOfficerRequest request)
     {
         var officer = await _db.Officers.FindAsync(id);
         if (officer is null) return NotFound();
 
-        officer.FirstName   = updated.FirstName;
-        officer.LastName    = updated.LastName;
-        officer.Rank        = updated.Rank;
-        officer.Precinct    = updated.Precinct;
-        officer.IsActive    = updated.IsActive;
+        officer.BadgeNumber = request.BadgeNumber.Trim();
+        officer.FirstName   = request.FirstName.Trim();
+        officer.LastName    = request.LastName.Trim();
+        officer.Rank        = request.Rank.Trim();
+        officer.Precinct    = request.Precinct.Trim();
+        officer.IsActive    = request.IsActive;
 
         await _db.SaveChangesAsync();
-        return NoContent();
+        return Ok(await LoadOfficerDto(id));
     }
 
     [HttpDelete("{id:int}")]
@@ -74,4 +84,32 @@ public class OfficersController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+
+    [HttpPost("{id:int}/reactivate")]
+    public async Task<ActionResult<OfficerDto>> Reactivate(int id)
+    {
+        var officer = await _db.Officers.FindAsync(id);
+        if (officer is null) return NotFound();
+
+        officer.IsActive = true;
+        await _db.SaveChangesAsync();
+        return Ok(await LoadOfficerDto(id));
+    }
+
+    private async Task<OfficerDto> LoadOfficerDto(int id) =>
+        await _db.Officers
+            .Where(o => o.Id == id)
+            .Select(MapToDto())
+            .FirstAsync();
+
+    private static System.Linq.Expressions.Expression<Func<PolicePortal.Models.Officer, OfficerDto>> MapToDto() =>
+        officer => new OfficerDto(
+            officer.Id,
+            officer.BadgeNumber,
+            officer.FirstName,
+            officer.LastName,
+            officer.Rank,
+            officer.Precinct,
+            officer.IsActive,
+            officer.Incidents.Count(i => !i.IsDeleted));
 }

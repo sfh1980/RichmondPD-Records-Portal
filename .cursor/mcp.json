@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    },
+    "Snyk": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "snyk@latest",
+        "mcp",
+        "-t",
+        "stdio"
+      ],
+      "env": {}
+    }
+  }
+}

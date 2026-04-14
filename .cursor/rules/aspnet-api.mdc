@@ -1,0 +1,18 @@
+---
+description: ASP.NET Core API conventions for controllers and HTTP behavior
+globs: **/*Controller.cs
+alwaysApply: false
+---
+
+# ASP.NET Core API Conventions
+
+- Use `[ApiController]` and attribute routing for all controllers.
+- Return `ActionResult<T>` for typed responses and appropriate HTTP status codes for create, read, update, and delete operations.
+- Prefer request DTOs for `POST` and `PUT` actions instead of binding EF Core entities directly, unless the user explicitly wants to keep a demo shortcut.
+- Validate request input explicitly and return clear `400` responses for invalid data.
+- Return `NotFound()` for missing resources and prefer consistent `ProblemDetails`-style responses when adding non-trivial error handling.
+- Keep controller actions thin: query or mutate state, map DTOs, and return predictable HTTP responses.
+- Use EF Core projections for read endpoints and keep eager loading intentional.
+- Keep auth and authorization explicit with `[Authorize]` and role or policy checks where relevant.
+- Do not widen CORS, auth, or error-handling behavior unless the task specifically requires it.
+- When a shortcut is acceptable for the demo, mention the production-safe alternative briefly in the explanation.

@@ -12,15 +12,16 @@ A full-stack police incident management system built to demonstrate:
 | Backend    | ASP.NET Core 8, C#, Entity Framework Core |
 | Database   | Microsoft SQL Server                      |
 | Auth       | JWT Bearer tokens                         |
-| Frontend   | Vanilla HTML/CSS/JS (IIS-served)          |
+| Frontend   | Vanilla HTML/CSS/JS (IIS-served SPA)      |
 | Seed/ETL   | Python 3, Faker, Requests                 |
+| Testing    | Playwright UI tests                       |
 | Dev Tools  | Visual Studio, SQL Server Mgmt Studio     |
 
 ---
 
 ## Project Structure
 
-All source files live at the project root (flat structure — no subfolders for a ~10-file demo).
+Most source files live at the project root (flat backend structure for a small interview demo).
 
 ```
 RichmondPD - Records Portal/
@@ -29,20 +30,27 @@ RichmondPD - Records Portal/
 ├── Models.cs                   ← Domain models (Incident, Officer, Location, lookups)
 ├── Dtos.cs                     ← Request/response DTOs (C# records)
 ├── AuthController.cs           ← JWT login (hardcoded demo credentials)
-├── IncidentsController.cs      ← CRUD + pagination + filtering + dashboard + XML export
-├── OfficersController.cs       ← CRUD with soft delete
+├── IncidentsController.cs      ← CRUD + soft delete + pagination + filtering + dashboard + XML export
+├── OfficersController.cs       ← CRUD + deactivate/reactivate
 ├── LocationsController.cs      ← CRUD with precinct filtering + incident count
 ├── ReportsController.cs        ← Stored-procedure reporting endpoints
 ├── PolicePortal.csproj         ← Project file (net8.0)
 ├── appsettings.json            ← Connection string, JWT config, logging
 ├── stored_procedures.sql       ← Trigger, 3 reporting stored procs, indexes
-├── index.html                  ← Frontend SPA (login, dashboard, tables, XML export)
+├── index.html                  ← Frontend shell (tabs, modals, tables)
+├── styles.css                  ← Frontend styling
+├── app.js                      ← Frontend SPA behavior
 ├── seed.py                     ← Python data seeder + report smoke checks
+├── FRONTEND_OVERVIEW.md        ← Page-by-page frontend walkthrough
+├── playwright.config.js        ← Playwright test configuration
+├── tests/
+│   └── ui/                     ← Login, incident, and officer UI tests
 ├── README.md
 ├── .github/
 │   └── workflows/ci.yml        ← GitHub Actions restore/build workflow
 └── .cursor/
-    ├── rules/cursor.rules      ← AI coding guidance
+    ├── mcp.json                ← Project-local MCP server config
+    ├── rules/*.mdc             ← AI coding guidance
     ├── agents/agents.md        ← Cursor agent prompts
     └── TECHNICAL_SPEC.md       ← Full technical documentation
 ```
@@ -87,11 +95,22 @@ python seed.py
 The seeder creates locations, officers, and incidents through the API, then smoke-tests the report endpoints.
 
 ### 4. Frontend
-The ASP.NET Core app now serves `index.html` from the project root, so opening `http://localhost:5000/` loads the frontend directly.
+The ASP.NET Core app serves `index.html`, `styles.css`, and `app.js` directly from the project root, so opening `http://localhost:5000/` loads the frontend directly.
 
 For IIS: create a site pointing to the project root.
 
 **Demo credentials:** `admin` / `Password123!`
+
+### 5. Run UI Tests
+```bash
+npm install
+npx playwright install chromium
+npm run test:ui
+```
+
+Useful variants:
+- `npm run test:ui:headed`
+- `npm run test:ui:debug`
 
 ---
 
@@ -103,12 +122,15 @@ For IIS: create a site pointing to the project root.
 - DTOs (C# records) to separate domain models from API responses
 - Pagination with `X-Total-Count` header
 - Server-side filtering by status, type, and precinct
+- Incident soft delete with archive/restore workflow
+- Officer deactivate/reactivate workflow
 
 ### SQL Server
 - Normalized schema: Incidents, Officers, Locations, IncidentTypes, IncidentStatuses
 - **Stored procedures:** `sp_GetOpenIncidentsByPrecinct`, `sp_MonthlyIncidentSummary`, `sp_OfficerWorkload`
 - **Trigger:** `trg_Incidents_UpdatedAt` auto-sets timestamp on row update
 - Indexes on StatusId, ReportedAt, and Officers.Precinct
+- Incident archive state stored in the database via `IsDeleted` and `DeletedAt`
 
 ### Reporting
 - `/api/reports/open-by-precinct` returns open incidents with officer and location details
@@ -120,10 +142,20 @@ For IIS: create a site pointing to the project root.
 - All API routes require `[Authorize]`
 - Token stored in localStorage, sent as Bearer header
 
+### Frontend SPA
+- Tabbed workspace for incidents and officers
+- Incident edit modal with archive/restore confirmation flow
+- Officers management table with active/inactive filtering
+- Frontend split into `index.html`, `styles.css`, and `app.js`
+
 ### XML Export
 - `/api/incidents/export/xml` returns well-formed XML via `System.Xml.Linq`
 - Filterable by status
 - Frontend triggers file download
+
+### UI Testing
+- Playwright UI tests cover login, incident edit/archive/restore, and officer deactivate/reactivate
+- `playwright.config.js` can start the API automatically for test runs
 
 ### Python ETL
 - `seed.py` generates fake locations, officers, and incidents via the API
@@ -138,6 +170,7 @@ For IIS: create a site pointing to the project root.
 - EF migrations apply cleanly to `localhost\\SQLEXPRESS`
 - `stored_procedures.sql` applies cleanly after migrations
 - `seed.py` completes and report endpoints return seeded data
+- Playwright UI suite passes (`3 passed`)
 
 ### IIS Deployment
 - Frontend is a static HTML file — drop into an IIS site
@@ -162,5 +195,6 @@ For IIS: create a site pointing to the project root.
 ## Documentation
 
 - **Technical Spec:** [`.cursor/TECHNICAL_SPEC.md`](.cursor/TECHNICAL_SPEC.md) — full domain model, API reference, architecture decisions, progress tracker, and tech debt
+- **Frontend Overview:** [`FRONTEND_OVERVIEW.md`](FRONTEND_OVERVIEW.md) — explains the purpose of each visible section of the UI
 - **AI Agents:** [`.cursor/agents/agents.md`](.cursor/agents/agents.md) — Cursor agent prompts for development workflows
-- **Coding Rules:** [`.cursor/rules/cursor.rules`](.cursor/rules/cursor.rules) — AI coding behavior guidance for this project
+- **Coding Rules:** [`.cursor/rules/`](.cursor/rules/) — project, .NET, and ASP.NET Core Cursor rule files

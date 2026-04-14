@@ -1,0 +1,18 @@
+---
+description: .NET and C# standards for the RichmondPD backend
+globs: **/*.{cs,csproj,json}
+alwaysApply: false
+---
+
+# .NET Standards
+
+- Use idiomatic C# with PascalCase for types and members, and camelCase for locals and parameters.
+- Prefer `record` types for DTOs and immutable request or response contracts.
+- Use `async` and `await` for all I/O-bound work; never introduce `.Result`, `.Wait()`, or `async void`.
+- Prefer constructor injection for dependencies and keep registration straightforward in `Program.cs` for this demo-sized app.
+- Favor DTOs over exposing or binding EF Core entities directly at API boundaries.
+- Add targeted validation for request DTOs with Data Annotations or equivalent server-side validation.
+- Keep methods focused and readable; extract private helpers when logic becomes repetitive or distracts from the controller flow.
+- Use EF Core query projections deliberately and avoid unnecessary `Include()` chains or query-per-row patterns.
+- Do not introduce new hardcoded secrets, credentials, JWT keys, or connection strings.
+- Add focused tests when changing controller behavior, validation, auth logic, or reporting queries.

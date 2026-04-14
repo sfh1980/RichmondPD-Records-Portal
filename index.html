@@ -1,789 +1,247 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Richmond PD — Records Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-<style>
-  :root {
-    --bg:       #0a0c10;
-    --surface:  #111318;
-    --border:   #1e2230;
-    --accent:   #00c8ff;
-    --accent2:  #0066ff;
-    --danger:   #ef4444;
-    --warn:     #f59e0b;
-    --success:  #10b981;
-    --purple:   #6366f1;
-    --text:     #e2e8f0;
-    --muted:    #64748b;
-    --font-mono: 'Share Tech Mono', monospace;
-    --font-body: 'Barlow', sans-serif;
-    --font-cond: 'Barlow Condensed', sans-serif;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-body);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* ── Scanline overlay ── */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,200,255,0.015) 2px,
-      rgba(0,200,255,0.015) 4px
-    );
-    pointer-events: none;
-    z-index: 9999;
-  }
-
-  /* ════════════ LOGIN SCREEN ════════════ */
-  #login-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    gap: 2rem;
-    padding: 2rem;
-    background:
-      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(0,200,255,0.08) 0%, transparent 70%),
-      var(--bg);
-  }
-
-  .login-badge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .badge-icon {
-    width: 72px; height: 72px;
-    border: 2px solid var(--accent);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 2rem;
-    box-shadow: 0 0 30px rgba(0,200,255,0.3);
-    animation: pulse 3s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%,100% { box-shadow: 0 0 20px rgba(0,200,255,0.3); }
-    50%      { box-shadow: 0 0 50px rgba(0,200,255,0.6); }
-  }
-
-  .login-title {
-    font-family: var(--font-cond);
-    font-size: 1.1rem;
-    letter-spacing: 0.3em;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-
-  .login-dept {
-    font-family: var(--font-cond);
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    color: var(--accent);
-  }
-
-  .login-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-top: 2px solid var(--accent);
-    padding: 2.5rem;
-    width: 100%;
-    max-width: 400px;
-    position: relative;
-  }
-
-  .login-card::before {
-    content: 'SECURE ACCESS';
-    position: absolute;
-    top: -0.65rem;
-    right: 1.5rem;
-    background: var(--surface);
-    padding: 0 0.5rem;
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    color: var(--accent);
-    letter-spacing: 0.15em;
-  }
-
-  .field { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.2rem; }
-  .field label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); letter-spacing: 0.1em; }
-
-  .field input {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 0.75rem 1rem;
-    font-family: var(--font-mono);
-    font-size: 0.95rem;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .field input:focus { border-color: var(--accent); }
-
-  .btn-login {
-    width: 100%;
-    background: var(--accent);
-    color: #000;
-    border: none;
-    padding: 0.9rem;
-    font-family: var(--font-cond);
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    cursor: pointer;
-    transition: opacity 0.2s, transform 0.1s;
-    margin-top: 0.5rem;
-  }
-  .btn-login:hover { opacity: 0.85; }
-  .btn-login:active { transform: scale(0.99); }
-
-  .login-hint {
-    text-align: center;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--muted);
-    margin-top: 1rem;
-  }
-
-  .login-error {
-    color: var(--danger);
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    text-align: center;
-    min-height: 1.2rem;
-    margin-bottom: 0.5rem;
-  }
-
-  /* ════════════ APP SHELL ════════════ */
-  #app { display: none; }
-
-  /* ── Topbar ── */
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 2rem;
-    height: 56px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-
-  .topbar-brand {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .topbar-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent);
-    animation: blink 2s step-start infinite;
-  }
-  @keyframes blink { 50% { opacity: 0; } }
-
-  .topbar-name {
-    font-family: var(--font-cond);
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    color: var(--accent);
-  }
-
-  .topbar-right { display: flex; align-items: center; gap: 1.5rem; }
-
-  .topbar-user {
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
-
-  .btn-logout {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    padding: 0.4rem 1rem;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: border-color 0.2s, color 0.2s;
-    letter-spacing: 0.05em;
-  }
-  .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
-
-  /* ── Main layout ── */
-  .main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
-  }
-
-  .section-label {
-    font-family: var(--font-cond);
-    font-size: 0.8rem;
-    letter-spacing: 0.25em;
-    color: var(--muted);
-    text-transform: uppercase;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .section-label::before {
-    content: '//';
-    color: var(--accent);
-    font-family: var(--font-mono);
-  }
-
-  /* ── Stat cards ── */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    margin-bottom: 2.5rem;
-  }
-
-  .stat-card {
-    background: var(--surface);
-    padding: 1.5rem;
-    position: relative;
-    overflow: hidden;
-    transition: background 0.2s;
-  }
-  .stat-card:hover { background: #161921; }
-
-  .stat-card::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 2px;
-  }
-  .stat-card.red::after    { background: var(--danger); }
-  .stat-card.amber::after  { background: var(--warn); }
-  .stat-card.green::after  { background: var(--success); }
-  .stat-card.purple::after { background: var(--purple); }
-
-  .stat-label {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    margin-bottom: 0.5rem;
-  }
-
-  .stat-value {
-    font-family: var(--font-cond);
-    font-size: 3rem;
-    font-weight: 700;
-    line-height: 1;
-    color: var(--text);
-  }
-  .stat-card.red    .stat-value { color: var(--danger); }
-  .stat-card.amber  .stat-value { color: var(--warn); }
-  .stat-card.green  .stat-value { color: var(--success); }
-  .stat-card.purple .stat-value { color: var(--purple); }
-
-  /* ── Toolbar ── */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .toolbar select, .toolbar input[type="text"] {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 0.5rem 0.75rem;
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    outline: none;
-    cursor: pointer;
-    transition: border-color 0.2s;
-  }
-  .toolbar select:focus,
-  .toolbar input[type="text"]:focus { border-color: var(--accent); }
-
-  .btn {
-    padding: 0.5rem 1.2rem;
-    font-family: var(--font-cond);
-    font-size: 0.9rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    border: none;
-    cursor: pointer;
-    transition: opacity 0.2s;
-  }
-  .btn:hover { opacity: 0.8; }
-  .btn-primary { background: var(--accent); color: #000; }
-  .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
-  .btn-sm { padding: 0.35rem 0.8rem; font-size: 0.78rem; }
-
-  /* ── Table ── */
-  .table-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    overflow-x: auto;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.875rem;
-  }
-
-  thead {
-    background: #0d0f14;
-    border-bottom: 1px solid var(--border);
-  }
-
-  th {
-    padding: 0.75rem 1rem;
-    text-align: left;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    white-space: nowrap;
-  }
-
-  td {
-    padding: 0.85rem 1rem;
-    border-bottom: 1px solid var(--border);
-    vertical-align: middle;
-  }
-
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: rgba(0,200,255,0.03); }
-
-  .case-num {
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    color: var(--accent);
-  }
-
-  .badge {
-    display: inline-block;
-    padding: 0.2rem 0.6rem;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.05em;
-    border: 1px solid currentColor;
-    white-space: nowrap;
-  }
-
-  .desc-cell {
-    max-width: 260px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--muted);
-    font-size: 0.82rem;
-  }
-
-  .officer-cell { font-size: 0.82rem; }
-  .officer-badge-num { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); }
-
-  /* ── Pagination ── */
-  .pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1rem 0;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    color: var(--muted);
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .pag-buttons { display: flex; gap: 0.5rem; }
-  .pag-btn {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 0.35rem 0.75rem;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    cursor: pointer;
-    transition: border-color 0.2s;
-  }
-  .pag-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .pag-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-  /* ── Loading / empty ── */
-  .loading {
-    text-align: center;
-    padding: 4rem;
-    font-family: var(--font-mono);
-    color: var(--muted);
-    font-size: 0.85rem;
-    letter-spacing: 0.1em;
-    animation: fadeIn 0.5s;
-  }
-
-  .loading::before {
-    display: block;
-    content: '[ FETCHING DATA... ]';
-    color: var(--accent);
-    margin-bottom: 0.5rem;
-  }
-
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-  .animate-in { animation: slideIn 0.3s ease-out; }
-
-  /* ── Toast ── */
-  .toast {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    background: var(--surface);
-    border: 1px solid var(--accent);
-    border-left: 3px solid var(--accent);
-    padding: 0.85rem 1.25rem;
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    color: var(--accent);
-    z-index: 9998;
-    animation: slideIn 0.3s ease-out;
-    max-width: 320px;
-  }
-
-  @media (max-width: 640px) {
-    .main { padding: 1rem; }
-    .topbar { padding: 0 1rem; }
-    .stat-value { font-size: 2rem; }
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Richmond PD - Records Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-
-<!-- ═══════════════ LOGIN ═══════════════ -->
-<div id="login-screen">
-  <div class="login-badge">
-    <div class="badge-icon">🛡</div>
-    <div class="login-title">City of Richmond</div>
-    <div class="login-dept">POLICE DEPARTMENT</div>
-  </div>
-
-  <div class="login-card">
-    <div class="field">
-      <label>BADGE / USERNAME</label>
-      <input id="inp-user" type="text" value="admin" autocomplete="username" />
+  <div id="login-screen">
+    <div class="login-badge">
+      <div class="badge-icon">RPD</div>
+      <div class="login-title">City of Richmond</div>
+      <div class="login-dept">POLICE DEPARTMENT</div>
     </div>
-    <div class="field">
-      <label>PASSWORD</label>
-      <input id="inp-pass" type="password" value="Password123!" autocomplete="current-password" />
-    </div>
-    <div class="login-error" id="login-error"></div>
-    <button class="btn-login" id="btn-login">AUTHENTICATE</button>
-    <div class="login-hint">demo: admin / Password123!</div>
-  </div>
-</div>
 
-<!-- ═══════════════ APP ═══════════════ -->
-<div id="app">
-  <!-- Topbar -->
-  <div class="topbar">
-    <div class="topbar-brand">
-      <div class="topbar-dot"></div>
-      <div class="topbar-name">RVA — RECORDS PORTAL</div>
-    </div>
-    <div class="topbar-right">
-      <div class="topbar-user" id="topbar-user">OFFICER: —</div>
-      <button class="btn-logout" id="btn-logout">SIGN OUT</button>
+    <div class="login-card">
+      <div class="field">
+        <label for="inp-user">BADGE / USERNAME</label>
+        <input id="inp-user" type="text" value="admin" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label for="inp-pass">PASSWORD</label>
+        <input id="inp-pass" type="password" value="Password123!" autocomplete="current-password" />
+      </div>
+      <div class="login-error" id="login-error"></div>
+      <button class="btn-login" id="btn-login" type="button">AUTHENTICATE</button>
+      <div class="dialog-subtitle">demo: admin / Password123!</div>
     </div>
   </div>
 
-  <div class="main">
-
-    <!-- ── Stats ── -->
-    <div class="section-header">
-      <div class="section-label">Dashboard Overview</div>
-    </div>
-
-    <div class="stats-grid" id="stats-grid">
-      <div class="stat-card red">
-        <div class="stat-label">OPEN INCIDENTS</div>
-        <div class="stat-value" id="stat-open">—</div>
+  <div id="app" class="hidden">
+    <div class="topbar">
+      <div class="topbar-brand">
+        <div class="topbar-dot"></div>
+        <div class="topbar-name">RVA - RECORDS PORTAL</div>
       </div>
-      <div class="stat-card amber">
-        <div class="stat-label">UNDER INVESTIGATION</div>
-        <div class="stat-value" id="stat-inv">—</div>
-      </div>
-      <div class="stat-card green">
-        <div class="stat-label">CLOSED THIS MONTH</div>
-        <div class="stat-value" id="stat-closed">—</div>
-      </div>
-      <div class="stat-card purple">
-        <div class="stat-label">TOTAL RECORDS</div>
-        <div class="stat-value" id="stat-total">—</div>
+      <div class="topbar-right">
+        <div class="topbar-user" id="topbar-user">OFFICER: ADMIN</div>
+        <button class="btn-logout" id="btn-logout" type="button">SIGN OUT</button>
       </div>
     </div>
 
-    <!-- ── Incidents Table ── -->
-    <div class="section-header">
-      <div class="section-label">Incident Records</div>
-    </div>
-
-    <div class="toolbar">
-      <select id="filter-status" title="Filter by status">
-        <option value="">ALL STATUSES</option>
-        <option value="1">OPEN</option>
-        <option value="2">UNDER INVESTIGATION</option>
-        <option value="3">CLOSED</option>
-        <option value="4">PENDING REVIEW</option>
-      </select>
-      <select id="filter-type" title="Filter by type">
-        <option value="">ALL TYPES</option>
-        <option value="1">THEFT</option>
-        <option value="2">ASSAULT</option>
-        <option value="3">VANDALISM</option>
-        <option value="4">BURGLARY</option>
-        <option value="5">TRAFFIC INCIDENT</option>
-        <option value="6">DISTURBANCE</option>
-        <option value="7">FRAUD</option>
-      </select>
-      <button class="btn btn-outline btn-sm" id="btn-export-xml" title="Export visible results as XML">⬇ EXPORT XML</button>
-      <button class="btn btn-primary btn-sm" id="btn-refresh">↺ REFRESH</button>
-    </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>CASE #</th>
-            <th>TYPE</th>
-            <th>STATUS</th>
-            <th>DESCRIPTION</th>
-            <th>OFFICER</th>
-            <th>LOCATION</th>
-            <th>REPORTED</th>
-          </tr>
-        </thead>
-        <tbody id="incidents-body">
-          <tr><td colspan="7"><div class="loading"></div></td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="pagination">
-      <div id="pag-info">Loading...</div>
-      <div class="pag-buttons">
-        <button class="pag-btn" id="btn-prev">← PREV</button>
-        <button class="pag-btn" id="btn-next">NEXT →</button>
+    <main class="main">
+      <div class="section-header">
+        <div class="section-label">Dashboard Overview</div>
       </div>
-    </div>
 
+      <div class="stats-grid">
+        <div class="stat-card red">
+          <div class="stat-label">OPEN INCIDENTS</div>
+          <div class="stat-value" id="stat-open">-</div>
+        </div>
+        <div class="stat-card amber">
+          <div class="stat-label">UNDER INVESTIGATION</div>
+          <div class="stat-value" id="stat-inv">-</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-label">CLOSED THIS MONTH</div>
+          <div class="stat-value" id="stat-closed">-</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-label">TOTAL RECORDS</div>
+          <div class="stat-value" id="stat-total">-</div>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-label">Records Workspace</div>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" data-view="incidents" type="button">INCIDENTS</button>
+        <button class="tab-btn" data-view="officers" type="button">OFFICERS</button>
+      </div>
+
+      <section id="view-incidents" class="view-panel">
+        <div class="section-header">
+          <div class="section-label">Incident Records</div>
+        </div>
+
+        <div class="toolbar">
+          <select id="filter-status" title="Filter by status">
+            <option value="">ALL STATUSES</option>
+            <option value="1">OPEN</option>
+            <option value="2">UNDER INVESTIGATION</option>
+            <option value="3">CLOSED</option>
+            <option value="4">PENDING REVIEW</option>
+          </select>
+          <select id="filter-type" title="Filter by type">
+            <option value="">ALL TYPES</option>
+            <option value="1">THEFT</option>
+            <option value="2">ASSAULT</option>
+            <option value="3">VANDALISM</option>
+            <option value="4">BURGLARY</option>
+            <option value="5">TRAFFIC INCIDENT</option>
+            <option value="6">DISTURBANCE</option>
+            <option value="7">FRAUD</option>
+          </select>
+          <label class="checkbox-label" for="filter-archived">
+            <input id="filter-archived" type="checkbox" />
+            INCLUDE ARCHIVED
+          </label>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-outline btn-sm" id="btn-export-xml" type="button">EXPORT XML</button>
+          <button class="btn btn-primary btn-sm" id="btn-refresh" type="button">REFRESH</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>CASE #</th>
+                <th>TYPE</th>
+                <th>STATUS</th>
+                <th>DESCRIPTION</th>
+                <th>OFFICER</th>
+                <th>LOCATION</th>
+                <th>REPORTED</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="incidents-body">
+              <tr><td colspan="8"><div class="loading"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <div id="pag-info">LOADING...</div>
+          <div class="actions-cell">
+            <button class="pag-btn" id="btn-prev" type="button">PREV</button>
+            <button class="pag-btn" id="btn-next" type="button">NEXT</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-officers" class="view-panel hidden">
+        <div class="section-header">
+          <div class="section-label">Officer Management</div>
+        </div>
+
+        <div class="toolbar">
+          <select id="officers-filter" title="Filter officers">
+            <option value="active">ACTIVE ONLY</option>
+            <option value="inactive">INACTIVE ONLY</option>
+            <option value="all">ALL OFFICERS</option>
+          </select>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-primary btn-sm" id="btn-refresh-officers" type="button">REFRESH</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>BADGE</th>
+                <th>OFFICER</th>
+                <th>RANK</th>
+                <th>PRECINCT</th>
+                <th>STATUS</th>
+                <th>INCIDENTS</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="officers-body">
+              <tr><td colspan="7"><div class="loading"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   </div>
-</div>
 
-<!-- ═══════════════ TOAST ═══════════════ -->
-<div id="toast" class="toast" style="display:none"></div>
+  <div id="toast" class="toast hidden"></div>
 
-<script>
-// ─── State ────────────────────────────────────────────────────────────────────
-const API    = 'http://localhost:5000/api';
-let token    = localStorage.getItem('pp_token') || '';
-let page     = 1;
-let total    = 0;
-const limit  = 25;
+  <div id="incident-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">Edit Incident</div>
+          <div class="modal-subtitle" id="incident-modal-case">-</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="btn-close-incident-modal" type="button">CLOSE</button>
+      </div>
 
-// ─── Utils ────────────────────────────────────────────────────────────────────
-function fmt(dateStr) {
-  if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month:'short', day:'numeric', year:'numeric'
-  });
-}
+      <form id="incident-form" class="modal-form">
+        <input id="incident-id" type="hidden" />
 
-function toast(msg, color = 'var(--accent)') {
-  const el = document.getElementById('toast');
-  el.style.borderColor = color;
-  el.style.color       = color;
-  el.textContent       = msg;
-  el.style.display     = 'block';
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.style.display = 'none', 3000);
-}
+        <div class="field">
+          <label for="incident-description">DESCRIPTION</label>
+          <textarea id="incident-description" required></textarea>
+        </div>
 
-async function apiFetch(path, opts = {}) {
-  const resp = await fetch(API + path, {
-    ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...(opts.headers || {})
-    }
-  });
-  if (resp.status === 401) { logout(); return null; }
-  return resp;
-}
+        <div class="modal-grid">
+          <div class="field">
+            <label for="incident-occurred-at">OCCURRED AT</label>
+            <input id="incident-occurred-at" type="datetime-local" />
+          </div>
+          <div class="field">
+            <label for="incident-status-id">STATUS</label>
+            <select id="incident-status-id"></select>
+          </div>
+          <div class="field">
+            <label for="incident-type-id">TYPE</label>
+            <select id="incident-type-id"></select>
+          </div>
+          <div class="field">
+            <label for="incident-officer-id">OFFICER</label>
+            <select id="incident-officer-id"></select>
+          </div>
+          <div class="field">
+            <label for="incident-location-id">LOCATION</label>
+            <select id="incident-location-id"></select>
+          </div>
+        </div>
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
-document.getElementById('btn-login').addEventListener('click', async () => {
-  const u = document.getElementById('inp-user').value.trim();
-  const p = document.getElementById('inp-pass').value;
-  document.getElementById('login-error').textContent = '';
+        <div class="form-error" id="incident-form-error"></div>
 
-  const resp = await fetch(`${API}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: u, password: p })
-  }).catch(() => null);
+        <div class="modal-actions actions-cell">
+          <button class="btn btn-secondary" id="btn-cancel-incident-modal" type="button">CANCEL</button>
+          <button class="btn btn-primary" type="submit">SAVE CHANGES</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-  if (!resp || !resp.ok) {
-    document.getElementById('login-error').textContent = 'Invalid credentials.';
-    return;
-  }
+  <div id="confirm-modal" class="modal hidden">
+    <div class="dialog-card">
+      <div class="modal-header">
+        <div>
+          <div class="dialog-title" id="confirm-title">Confirm Action</div>
+          <div class="dialog-subtitle" id="confirm-message">Are you sure?</div>
+        </div>
+      </div>
 
-  const data = await resp.json();
-  token = data.token;
-  localStorage.setItem('pp_token', token);
-  document.getElementById('topbar-user').textContent = `OFFICER: ${u.toUpperCase()}`;
-  showApp();
-});
+      <div class="dialog-actions actions-cell">
+        <button class="btn btn-secondary" id="btn-cancel-confirm" type="button">CANCEL</button>
+        <button class="btn btn-primary" id="confirm-action" type="button">CONFIRM</button>
+      </div>
+    </div>
+  </div>
 
-document.getElementById('inp-pass').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('btn-login').click();
-});
-
-function showApp() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  loadDashboard();
-  loadIncidents();
-}
-
-function logout() {
-  token = '';
-  localStorage.removeItem('pp_token');
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
-}
-
-document.getElementById('btn-logout').addEventListener('click', logout);
-
-// ─── Dashboard stats ──────────────────────────────────────────────────────────
-async function loadDashboard() {
-  const resp = await apiFetch('/incidents/dashboard');
-  if (!resp?.ok) return;
-  const d = await resp.json();
-  document.getElementById('stat-open').textContent   = d.openIncidents;
-  document.getElementById('stat-inv').textContent    = d.underInvestigation;
-  document.getElementById('stat-closed').textContent = d.closedThisMonth;
-  document.getElementById('stat-total').textContent  = d.totalIncidents;
-}
-
-// ─── Incidents table ──────────────────────────────────────────────────────────
-async function loadIncidents() {
-  const statusId = document.getElementById('filter-status').value;
-  const typeId   = document.getElementById('filter-type').value;
-
-  let qs = `?page=${page}&pageSize=${limit}`;
-  if (statusId) qs += `&statusId=${statusId}`;
-  if (typeId)   qs += `&typeId=${typeId}`;
-
-  document.getElementById('incidents-body').innerHTML =
-    `<tr><td colspan="7"><div class="loading"></div></td></tr>`;
-
-  const resp = await apiFetch(`/incidents${qs}`);
-  if (!resp?.ok) return;
-
-  total = parseInt(resp.headers.get('X-Total-Count') || '0');
-  const items = await resp.json();
-
-  const body = document.getElementById('incidents-body');
-
-  if (!items.length) {
-    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--muted);font-family:var(--font-mono);font-size:.8rem;">
-      NO RECORDS FOUND</td></tr>`;
-  } else {
-    body.innerHTML = items.map(i => `
-      <tr class="animate-in">
-        <td><div class="case-num">${i.caseNumber}</div></td>
-        <td><span style="font-size:.82rem;color:var(--muted)">${i.incidentType}</span></td>
-        <td><span class="badge" style="color:${i.statusColor};border-color:${i.statusColor}">${i.incidentStatus.toUpperCase()}</span></td>
-        <td><div class="desc-cell" title="${i.description}">${i.description}</div></td>
-        <td>
-          <div class="officer-cell">${i.officerName}</div>
-          <div class="officer-badge-num">${i.badgeNumber}</div>
-        </td>
-        <td style="font-size:.78rem;color:var(--muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.locationAddress}</td>
-        <td style="font-family:var(--font-mono);font-size:.78rem;white-space:nowrap">${fmt(i.reportedAt)}</td>
-      </tr>
-    `).join('');
-  }
-
-  const start = (page - 1) * limit + 1;
-  const end   = Math.min(page * limit, total);
-  document.getElementById('pag-info').textContent =
-    total ? `RECORDS ${start}–${end} OF ${total}` : 'NO RECORDS';
-
-  document.getElementById('btn-prev').disabled = page <= 1;
-  document.getElementById('btn-next').disabled = page * limit >= total;
-}
-
-document.getElementById('filter-status').addEventListener('change', () => { page = 1; loadIncidents(); });
-document.getElementById('filter-type').addEventListener('change',   () => { page = 1; loadIncidents(); });
-document.getElementById('btn-refresh').addEventListener('click', () => { loadDashboard(); loadIncidents(); });
-document.getElementById('btn-prev').addEventListener('click',    () => { page--; loadIncidents(); });
-document.getElementById('btn-next').addEventListener('click',    () => { page++; loadIncidents(); });
-
-// ─── XML Export ───────────────────────────────────────────────────────────────
-document.getElementById('btn-export-xml').addEventListener('click', async () => {
-  const statusId = document.getElementById('filter-status').value;
-  let url = `${API}/incidents/export/xml`;
-  if (statusId) url += `?statusId=${statusId}`;
-
-  const resp = await apiFetch(`/incidents/export/xml${statusId ? '?statusId=' + statusId : ''}`);
-  if (!resp?.ok) { toast('Export failed', 'var(--danger)'); return; }
-
-  const xml  = await resp.text();
-  const blob = new Blob([xml], { type: 'application/xml' });
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = `incidents-export-${Date.now()}.xml`;
-  a.click();
-  toast('XML export downloaded');
-});
-
-// ─── Auto-login if token exists ───────────────────────────────────────────────
-if (token) {
-  document.getElementById('topbar-user').textContent = 'OFFICER: ADMIN';
-  showApp();
-}
-</script>
+  <script src="/app.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,15 @@
+---
+description: Project-specific context for the RichmondPD demo app
+alwaysApply: true
+---
+
+# RichmondPD Project Context
+
+- This is an interview demo app: keep solutions simple, explainable, and production-aware.
+- Stack: ASP.NET Core 8 Web API, EF Core, SQL Server, vanilla HTML/CSS/JS frontend, and a Python seeder.
+- Architecture: controllers may access `AppDbContext` directly; do not add repository or service layers unless explicitly requested.
+- Prefer modifying existing files over adding new abstractions when the current structure remains readable.
+- Preserve the app's demo value: readable CRUD flows, JWT auth, reporting stored procedures, XML export, and straightforward setup.
+- Keep law-enforcement vocabulary consistent: `Incident`, `Officer`, `Location`, `Precinct`, `CaseNumber`, `BadgeNumber`.
+- When suggesting production improvements, clearly separate them from the current demo implementation.
+- Keep explanations concise and focused on why a change helps in an interview setting.

@@ -1,7 +1,7 @@
 # RichmondPD Records Portal — Technical Specification
 
 <!-- Single source of truth for all project technical documentation.
-     cursor.rules governs AI coding behavior.
+     .cursor/rules/*.mdc govern AI coding behavior.
      README.md is the public-facing overview.
      This file documents what IS built — not what will be. -->
 
@@ -24,12 +24,13 @@
 | Database         | Microsoft SQL Server        | SQLEXPRESS verified locally; localdb/full also supported |
 | Auth             | JWT Bearer                  | via Microsoft.AspNetCore.Authentication.JwtBearer 8.0.0 |
 | API Docs         | Swashbuckle (Swagger)       | 6.5.0   |
-| Frontend         | Vanilla HTML/CSS/JS         | —       |
+| Frontend         | Vanilla HTML/CSS/JS SPA     | —       |
 | Seeder           | Python 3 + Faker + Requests | —       |
+| UI Testing       | Playwright                  | 1.59.1  |
 
 ### Architecture
 
-REST API + SPA. Controllers access AppDbContext directly. No service layer, no repository layer. See cursor.rules for full architecture description.
+REST API + SPA. Controllers access AppDbContext directly. No service layer, no repository layer. See `.cursor/rules/` for project-specific coding guidance.
 
 ---
 
@@ -119,6 +120,8 @@ REST API + SPA. Controllers access AppDbContext directly. No service layer, no r
 | ReportedAt       | DateTime | No       | Default: UtcNow       |       |
 | OccurredAt       | DateTime | Yes      |                       |       |
 | UpdatedAt        | DateTime | Yes      |                       | Set by DB trigger only |
+| IsDeleted        | bool     | No       | Default: false        | Soft delete flag |
+| DeletedAt        | DateTime | Yes      |                       | UTC archive timestamp |
 | IncidentTypeId   | int      | No       | FK → IncidentType     | Restrict delete |
 | IncidentStatusId | int      | No       | FK → IncidentStatus   | Restrict delete |
 | LocationId       | int      | No       | FK → Location         | Restrict delete |
@@ -149,11 +152,12 @@ Swagger UI: http://localhost:5000/swagger
 
 | Method | Route                       | Auth      | Request DTO            | Response DTO  | Notes |
 |--------|-----------------------------|-----------|------------------------|---------------|-------|
-| GET    | /api/incidents              | [Authorize] | query: statusId, typeId, precinct, page, pageSize | IncidentDto[] | X-Total-Count header |
-| GET    | /api/incidents/{id}         | [Authorize] | —                    | IncidentDto   |       |
+| GET    | /api/incidents              | [Authorize] | query: statusId, typeId, precinct, includeArchived, page, pageSize | IncidentDto[] | X-Total-Count header |
+| GET    | /api/incidents/{id}         | [Authorize] | query: includeArchived | IncidentDto   |       |
 | POST   | /api/incidents              | [Authorize] | CreateIncidentRequest | IncidentDto   | Auto-generates CaseNumber |
 | PUT    | /api/incidents/{id}         | [Authorize] | UpdateIncidentRequest | IncidentDto   | UpdatedAt set by trigger |
-| DELETE | /api/incidents/{id}         | [Authorize] | —                    | 204           | Hard delete |
+| DELETE | /api/incidents/{id}         | [Authorize] | —                    | 204           | Soft delete (archive) |
+| POST   | /api/incidents/{id}/restore | [Authorize] | —                    | IncidentDto   | Clears archive state |
 | GET    | /api/incidents/export/xml   | [Authorize] | query: statusId      | XML           | application/xml |
 | GET    | /api/incidents/dashboard    | [Authorize] | —                    | DashboardStats |       |
 
@@ -163,9 +167,10 @@ Swagger UI: http://localhost:5000/swagger
 |--------|----------------------|-----------|-------------|--------------|-------|
 | GET    | /api/officers        | [Authorize] | query: activeOnly | OfficerDto[] |       |
 | GET    | /api/officers/{id}   | [Authorize] | —           | OfficerDto   |       |
-| POST   | /api/officers        | [Authorize] | Officer (model) | Officer    | Accepts raw model |
-| PUT    | /api/officers/{id}   | [Authorize] | Officer (model) | 204        |       |
+| POST   | /api/officers        | [Authorize] | CreateOfficerRequest | OfficerDto |       |
+| PUT    | /api/officers/{id}   | [Authorize] | UpdateOfficerRequest | OfficerDto |       |
 | DELETE | /api/officers/{id}   | [Authorize] | —           | 204          | Soft delete (IsActive=false) |
+| POST   | /api/officers/{id}/reactivate | [Authorize] | —   | OfficerDto   | Restores officer to active state |
 
 ### Locations
 
@@ -201,7 +206,7 @@ Swagger UI: http://localhost:5000/swagger
 
 **DB Trigger:** `trg_Incidents_UpdatedAt` — AFTER UPDATE on Incidents, sets UpdatedAt = GETUTCDATE().
 
-**Soft delete:** Officers only (IsActive = false). Incidents and Locations use hard delete.
+**Soft delete:** Officers use `IsActive = false`. Incidents use `IsDeleted = true` plus `DeletedAt`.
 
 No application-level audit trail.
 
@@ -232,13 +237,17 @@ No application-level audit trail.
 | JWT authentication                   | Complete     | Hardcoded demo creds |
 | Swagger/OpenAPI                      | Complete     | Bearer security definition |
 | Incident CRUD + pagination/filtering | Complete     | IncidentsController |
+| Incident soft delete + restore       | Complete     | Archived incidents hidden by default, restore endpoint available |
 | Dashboard stats endpoint             | Complete     | /api/incidents/dashboard |
 | XML export endpoint                  | Complete     | /api/incidents/export/xml |
 | Officer CRUD + soft delete           | Complete     | OfficersController |
+| Officer reactivate                   | Complete     | `/api/officers/{id}/reactivate` |
 | Location CRUD                        | Complete     | LocationsController |
 | DB trigger (UpdatedAt)               | Complete     | stored_procedures.sql |
 | Stored procedures (SQL)              | Complete     | 3 reporting procs + indexes |
-| Frontend SPA                         | Complete     | index.html |
+| Frontend SPA                         | Complete     | `index.html`, `styles.css`, `app.js` |
+| Frontend documentation               | Complete     | `FRONTEND_OVERVIEW.md` |
+| Playwright UI tests                  | Complete     | Login, incidents, and officers UI flows |
 | Python seeder                        | Complete     | Seeds locations, officers, incidents, then smoke-tests report endpoints |
 | ReportsController (SP endpoints)     | Complete     | 3 GET endpoints calling stored procedures via ADO.NET |
 | stored_procedures.sql cleanup        | Complete     | Removed dead Report CRUD procs; index creation is valid SQL Server syntax |
@@ -258,12 +267,12 @@ No application-level audit trail.
 2. **AllowAnyOrigin CORS** — Wide-open CORS policy. Deferred: no deployed frontend yet. Fix: explicit origin whitelist from config.
 3. **JWT key in appsettings.json** — Secret committed to source. Deferred: demo project. Fix: .NET Secret Manager for dev, env vars or Key Vault for prod.
 4. **No password hashing** — Plaintext comparison. Deferred: demo project. Fix: BCrypt.Net-Next.
-5. **Hard delete on Incidents/Locations** — DbSet.Remove() used. Deferred: only Officers needed soft delete for demo. Fix: BaseEntity with IsDeleted, global query filter.
-6. **Officers/Locations POST accepts raw domain model** — No request DTO, risk of over-posting. Deferred: demo simplicity. Fix: dedicated CreateOfficerRequest / CreateLocationRequest DTOs.
-7. **No input validation** — Relies on model binding only. Fix: FluentValidation.
+5. **Locations still use hard delete** — `DbSet.Remove()` is still used for locations. Fix: add archive behavior if historical retention is needed there too.
+6. **Locations POST/PUT accept raw domain model** — No request DTO, risk of over-posting. Fix: dedicated CreateLocationRequest / UpdateLocationRequest DTOs.
+7. **No input validation beyond data annotations** — Improved, but still basic. Fix: FluentValidation.
 8. **No error handling middleware** — Default ASP.NET Core responses. Fix: global exception middleware returning ProblemDetails.
 9. **CaseNumber generation not concurrency-safe** — Uses COUNT(*)+1. Fix: database sequence or Hi-Lo pattern.
-10. **IConfiguration read directly** — AuthController reads config["Jwt:Key"]. Fix: IOptions\<JwtSettings\>.
+10. **IConfiguration read directly** — AuthController reads config[\"Jwt:Key\"]. Fix: IOptions\<JwtSettings\>.
 11. **Seeder assumes API is already running** — `seed.py` does not start the app for you. Fix: optional automation script or dev container.
 12. **Report endpoints depend on stored procedures existing** — API routes compile, but DB objects must be applied from `stored_procedures.sql`. Fix: document/enforce SQL bootstrap order or automate it.
 13. **Startup assumes SQL Server is reachable** — `Program.cs` runs `Database.Migrate()` on boot. Fix: make startup migration optional per environment or add clearer bootstrap checks/logging.
@@ -284,17 +293,24 @@ No application-level audit trail.
 - stored_procedures.sql: trigger, 3 reporting procs, indexes
 - Frontend SPA (index.html) with login, dashboard, table, XML export
 - Python seeder (seed.py) structure
-- cursor.rules aligned to actual project architecture
 - TECHNICAL_SPEC.md populated with real project data
 - ReportsController stored-procedure endpoints with result DTOs
 - EF migrations for initial schema creation and precinct length constraints
 - GitHub Actions CI workflow for restore/build
+- Cursor `.mdc` rule files for project, .NET, and ASP.NET Core guidance
+- Project-local MCP config for Playwright and Snyk
+- Incident archive/restore workflow with soft-delete DB fields
+- Frontend split into `index.html`, `styles.css`, and `app.js`
+- Officers tab with deactivate/reactivate workflow
+- `FRONTEND_OVERVIEW.md` frontend walkthrough
+- Playwright UI suite for login, incidents, and officers
 
 ### Changed
 - `appsettings.json` now targets `localhost\\SQLEXPRESS` for local development
-- `stored_procedures.sql` cleaned up and validated against SQL Server Express
+- `stored_procedures.sql` cleaned up, validated against SQL Server Express, and updated to exclude archived incidents
 - `seed.py` now seeds locations/officers/incidents through the API and smoke-tests report endpoints
+- `README.md` updated for split frontend assets, testing, and documentation links
 
 ---
 
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-14*

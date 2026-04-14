@@ -21,6 +21,8 @@ public class AppDbContext : DbContext
             e.HasIndex(i => i.CaseNumber).IsUnique();
             e.Property(i => i.CaseNumber).HasMaxLength(20);
             e.Property(i => i.Description).HasMaxLength(2000);
+            e.Property(i => i.IsDeleted).HasDefaultValue(false);
+            e.ToTable(t => t.HasTrigger("trg_Incidents_UpdatedAt"));
 
             e.HasOne(i => i.IncidentType)
              .WithMany()

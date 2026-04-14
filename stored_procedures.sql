@@ -51,6 +51,7 @@ BEGIN
     INNER JOIN Locations         l  ON i.LocationId       = l.Id
     WHERE
         ist.[Name] = 'Open'
+        AND i.IsDeleted = 0
         AND (@Precinct IS NULL OR l.Precinct = @Precinct)
     ORDER BY i.ReportedAt DESC;
 END;
@@ -79,6 +80,8 @@ BEGIN
     INNER JOIN IncidentTypes    it  ON i.IncidentTypeId   = it.Id
     INNER JOIN IncidentStatuses ist ON i.IncidentStatusId = ist.Id
     WHERE
+        i.IsDeleted = 0
+        AND
         YEAR(i.ReportedAt)  = @Year
         AND MONTH(i.ReportedAt) = @Month
     GROUP BY it.[Name], ist.[Name]
@@ -104,7 +107,7 @@ BEGIN
         COUNT(CASE WHEN ist.[Name] = 'Open' THEN 1 END)  AS OpenIncidents,
         COUNT(CASE WHEN ist.[Name] = 'Closed' THEN 1 END) AS ClosedIncidents
     FROM Officers o
-    LEFT JOIN Incidents i        ON o.Id = i.OfficerId
+    LEFT JOIN Incidents i        ON o.Id = i.OfficerId AND i.IsDeleted = 0
     LEFT JOIN IncidentStatuses ist ON i.IncidentStatusId = ist.Id
     WHERE (@ActiveOnly = 0 OR o.IsActive = 1)
     GROUP BY o.Id, o.BadgeNumber, o.FirstName, o.LastName, o.[Rank], o.Precinct

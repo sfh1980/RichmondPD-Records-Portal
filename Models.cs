@@ -58,6 +58,8 @@ public class Incident
     public DateTime ReportedAt     { get; set; } = DateTime.UtcNow;
     public DateTime? OccurredAt    { get; set; }
     public DateTime? UpdatedAt     { get; set; }                    // set by DB trigger
+    public bool   IsDeleted        { get; set; }
+    public DateTime? DeletedAt     { get; set; }
 
     // Foreign keys
     public int IncidentTypeId   { get; set; }

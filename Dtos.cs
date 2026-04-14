@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace PolicePortal.DTOs;
 
 // ─── Incident ──────────────────────────────────────────────────────────────────
@@ -9,30 +11,46 @@ public record IncidentDto(
     DateTime  ReportedAt,
     DateTime? OccurredAt,
     DateTime? UpdatedAt,
+    int       IncidentTypeId,
+    int       IncidentStatusId,
+    int       LocationId,
+    int       OfficerId,
     string    IncidentType,
     string    IncidentStatus,
     string    StatusColor,
     string    OfficerName,
     string    BadgeNumber,
     string    LocationAddress,
-    string?   Precinct
+    string?   Precinct,
+    bool      IsDeleted,
+    DateTime? DeletedAt
 );
 
 public record CreateIncidentRequest(
+    [Required, StringLength(2000, MinimumLength = 5)]
     string    Description,
     DateTime? OccurredAt,
+    [Range(1, int.MaxValue)]
     int       IncidentTypeId,
+    [Range(1, int.MaxValue)]
     int       IncidentStatusId,
+    [Range(1, int.MaxValue)]
     int       LocationId,
+    [Range(1, int.MaxValue)]
     int       OfficerId
 );
 
 public record UpdateIncidentRequest(
+    [Required, StringLength(2000, MinimumLength = 5)]
     string    Description,
     DateTime? OccurredAt,
+    [Range(1, int.MaxValue)]
     int       IncidentTypeId,
+    [Range(1, int.MaxValue)]
     int       IncidentStatusId,
+    [Range(1, int.MaxValue)]
     int       LocationId,
+    [Range(1, int.MaxValue)]
     int       OfficerId
 );
 
@@ -47,6 +65,34 @@ public record OfficerDto(
     string Precinct,
     bool   IsActive,
     int    IncidentCount
+);
+
+public record CreateOfficerRequest(
+    [Required, StringLength(20, MinimumLength = 3)]
+    string BadgeNumber,
+    [Required, StringLength(100)]
+    string FirstName,
+    [Required, StringLength(100)]
+    string LastName,
+    [Required, StringLength(100)]
+    string Rank,
+    [Required, StringLength(50)]
+    string Precinct,
+    bool IsActive = true
+);
+
+public record UpdateOfficerRequest(
+    [Required, StringLength(20, MinimumLength = 3)]
+    string BadgeNumber,
+    [Required, StringLength(100)]
+    string FirstName,
+    [Required, StringLength(100)]
+    string LastName,
+    [Required, StringLength(100)]
+    string Rank,
+    [Required, StringLength(50)]
+    string Precinct,
+    bool IsActive
 );
 
 // ─── Location ──────────────────────────────────────────────────────────────────

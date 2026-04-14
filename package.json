@@ -1,0 +1,26 @@
+{
+  "name": "richmonpd---records-portal",
+  "version": "1.0.0",
+  "description": "A full-stack police incident management system built to demonstrate: **C# / .NET Web API, MSSQL, Stored Procedures, Triggers, JWT Auth, XML Export, Python ETL, IIS Deployment, Git**",
+  "main": "app.js",
+  "scripts": {
+    "test": "npm run test:ui",
+    "test:ui": "playwright test",
+    "test:ui:headed": "playwright test --headed",
+    "test:ui:debug": "playwright test --debug"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfh1980/RichmondPD-Records-Portal.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sfh1980/RichmondPD-Records-Portal/issues"
+  },
+  "homepage": "https://github.com/sfh1980/RichmondPD-Records-Portal#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}
